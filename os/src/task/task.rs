@@ -1,7 +1,7 @@
 //! Types related to task management
 
 use super::TaskContext;
-use crate::config::MAX_SYSCALL_NUM;
+use crate::{config::MAX_SYSCALL_NUM, timer::get_time_ms};
 
 /// The task control block (TCB) of a task.
 #[derive(Copy, Clone)]
@@ -33,6 +33,15 @@ impl TaskControlBlock {
     /// update the start time of the task
     pub fn update_syscall_times(&mut self, syscall_id: usize) {
         self.syscall_times[syscall_id] += 1;
+    }
+
+    /// update the time
+    pub fn update_run_time(&mut self) {
+        if self.start_time == 0 {
+            self.start_time = get_time_ms();
+        }
+        self.time = get_time_ms() - self.start_time;
+        debug!("update run time {:?}", self.time);
     }
 }
 
