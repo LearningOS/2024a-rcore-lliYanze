@@ -33,6 +33,7 @@ impl Debug for FrameTracker {
 }
 
 impl Drop for FrameTracker {
+    // 当tracker结束时 自动释放物理页帧
     fn drop(&mut self) {
         frame_dealloc(self.ppn);
     }
@@ -54,7 +55,7 @@ impl StackFrameAllocator {
     pub fn init(&mut self, l: PhysPageNum, r: PhysPageNum) {
         self.current = l.0;
         self.end = r.0;
-        // trace!("last {} Physical Frames.", self.end - self.current);
+        debug!("last {} Physical Frames.", self.end - self.current);
     }
 }
 impl FrameAllocator for StackFrameAllocator {
