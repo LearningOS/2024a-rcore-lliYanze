@@ -7,6 +7,7 @@
 use super::__switch;
 use super::{fetch_task, TaskStatus};
 use super::{TaskContext, TaskControlBlock};
+use crate::config::MAX_SYSCALL_NUM;
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::sync::Arc;
@@ -61,6 +62,8 @@ pub fn run_tasks() {
             let mut task_inner = task.inner_exclusive_access();
             let next_task_cx_ptr = &task_inner.task_cx as *const TaskContext;
             task_inner.task_status = TaskStatus::Running;
+            // update the running time of the task
+            task_inner.update_time();
             // release coming task_inner manually
             drop(task_inner);
             // release coming task TCB manually
@@ -108,4 +111,41 @@ pub fn schedule(switched_task_cx_ptr: *mut TaskContext) {
     unsafe {
         __switch(switched_task_cx_ptr, idle_task_cx_ptr);
     }
+}
+
+/// Update the syscall times of the current 'Running' task.
+pub fn update_syscall(syscall_id: usize) {
+    current_task()
+        .unwrap()
+        .inner_exclusive_access()
+        .update_syscall(syscall_id);
+}
+
+/// Get the syscall times
+pub fn get_syscall_times() -> [u32; MAX_SYSCALL_NUM] {
+    current_task()
+        .unwrap()
+        .inner_exclusive_access()
+        .get_syscall_times()
+}
+
+/// get the time
+pub fn get_cur_run_time_ms() -> usize {
+    current_task().unwrap().inner_exclusive_access().get_time()
+}
+
+/// get the status
+pub fn get_task_status() -> TaskStatus {
+    current_task()
+        .unwrap()
+        .inner_exclusive_access()
+        .get_status()
+}
+
+/// Update the run time of the current 'Running' task.
+pub fn update_time() {
+    current_task()
+        .unwrap()
+        .inner_exclusive_access()
+        .update_time();
 }
