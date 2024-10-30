@@ -22,6 +22,7 @@ use lazy_static::*;
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
 
+use crate::config::MAX_SYSCALL_NUM;
 pub use context::TaskContext;
 
 /// The task manager, where all the tasks are managed.
@@ -79,6 +80,7 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let next_task = &mut inner.tasks[0];
         next_task.task_status = TaskStatus::Running;
+        next_task.update_time();
         let next_task_cx_ptr = &next_task.task_cx as *const TaskContext;
         drop(inner);
         let mut _unused = TaskContext::zero_init();
@@ -140,6 +142,7 @@ impl TaskManager {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
+            inner.tasks[next].update_time();
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
@@ -152,6 +155,38 @@ impl TaskManager {
         } else {
             panic!("All applications completed!");
         }
+    }
+
+    /// update the syscall times
+    fn update_syscall(&self, syscall_id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        inner.tasks[cur].update_syscall(syscall_id);
+    }
+
+    /// update the run time
+    fn update_time(&self) {
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        inner.tasks[cur].update_time();
+    }
+
+    /// get the status
+    fn get_task_status(&self) -> TaskStatus {
+        let inner = self.inner.exclusive_access();
+        inner.tasks[inner.current_task].task_status
+    }
+
+    /// get the syscall times
+    fn get_syscall_times(&self) -> [u32; MAX_SYSCALL_NUM] {
+        let inner = self.inner.exclusive_access();
+        inner.tasks[inner.current_task].syscall_times
+    }
+
+    /// get the time
+    fn get_time(&self) -> usize {
+        let inner = self.inner.exclusive_access();
+        inner.tasks[inner.current_task].time
     }
 }
 
@@ -201,4 +236,29 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+/// Update the syscall times of the current 'Running' task.
+pub fn update_syscall(syscall_id: usize) {
+    TASK_MANAGER.update_syscall(syscall_id);
+}
+
+/// Get the status
+pub fn get_task_status() -> TaskStatus {
+    TASK_MANAGER.get_task_status()
+}
+
+/// Get the syscall times
+pub fn get_syscall_times() -> [u32; MAX_SYSCALL_NUM] {
+    TASK_MANAGER.get_syscall_times()
+}
+
+/// get the time
+pub fn get_cur_run_time_ms() -> usize {
+    TASK_MANAGER.get_time()
+}
+
+/// Update the run time of the current 'Running' task.
+pub fn update_time() {
+    TASK_MANAGER.update_time();
 }

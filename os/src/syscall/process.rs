@@ -9,6 +9,10 @@ use crate::{
 };
 
 use crate::mm::translate_va_2_pa;
+use crate::task::get_cur_run_time_ms;
+use crate::task::get_syscall_times;
+use crate::task::get_task_status;
+use crate::task::update_time;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -45,15 +49,8 @@ pub fn sys_yield() -> isize {
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
+// FIXME: not solve splitted by two pages
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
-    // let current_task_token = current_user_token();
-    // let page_table = PageTable::from_token(current_task_token);
-    // let va = VirtAddr::from(_ts as usize);
-    // let vpn = va.floor();
-    // let ppn = page_table.translate(vpn).unwrap().ppn();
-    // let page_offset = va.page_offset();
-    // let pa = PhysAddr::from(ppn).0 + page_offset;
-
     let va: VirtAddr = VirtAddr::from(_ts as usize);
     let pa = translate_va_2_pa(va).unwrap();
     let ts = pa.0 as usize as *mut TimeVal;
@@ -64,17 +61,26 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
             usec: time % 1_000_000,
         };
     };
-
-    // trace!("kernel: sys_get_time");
     0
 }
 
 /// YOUR JOB: Finish sys_task_info to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
+// FIXME: not solve splitted by two pages
 pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
-    trace!("kernel: sys_task_info NOT IMPLEMENTED YET!");
-    -1
+    update_time();
+    let va: VirtAddr = VirtAddr::from(_ti as usize);
+    let pa = translate_va_2_pa(va).unwrap();
+    let ti = pa.0 as usize as *mut TaskInfo;
+    unsafe {
+        *ti = TaskInfo {
+            status: get_task_status(),
+            syscall_times: get_syscall_times(),
+            time: get_cur_run_time_ms(),
+        };
+    };
+    0
 }
 
 // YOUR JOB: Implement mmap.
