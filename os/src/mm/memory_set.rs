@@ -350,15 +350,13 @@ impl MemorySet {
 
     /// check if the area is used
     pub fn check_unnamed_area(&self, start: VirtAddr, end: VirtAddr) -> bool {
-        for unnamed_area in self.unnamed_areas.iter() {
-            let start = start.floor();
-            let end = end.ceil();
-            if (start >= unnamed_area.vpn_range.get_start()
-                && start <= unnamed_area.vpn_range.get_end())
-                || (end >= unnamed_area.vpn_range.get_start()
-                    && end <= unnamed_area.vpn_range.get_end())
-            {
-                return false;
+        for vpn in VPNRange::new(start.floor(), end.ceil()) {
+            if let Some(pte) = self.page_table.translate(vpn) {
+                if pte.is_valid() {
+                    info!("in [{:?},{:?}] {:?} is used", start, end, vpn);
+                    return false;
+                }
+                info!("in [{:?},{:?}] {:?} is not used", start, end, vpn);
             }
         }
         return true;

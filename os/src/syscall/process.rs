@@ -169,8 +169,8 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     if len == 0 {
         return -1;
     }
-    debug!("sys_map start: {:#x}, end: {:#x}", start, start + len - 1);
-    if !push_unnamed_area(start, start + len - 1, flags) {
+    debug!("sys_map start: {:#x}, end: {:#x}", start, start + len);
+    if !push_unnamed_area(start, start + len, flags) {
         return -1;
     }
     0
