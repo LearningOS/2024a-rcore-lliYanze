@@ -37,6 +37,7 @@ lazy_static! {
 pub struct MemorySet {
     page_table: PageTable,
     areas: Vec<MapArea>,
+    unnamed_areas: Vec<MapArea>,
 }
 
 impl MemorySet {
@@ -45,6 +46,7 @@ impl MemorySet {
         Self {
             page_table: PageTable::new(),
             areas: Vec::new(),
+            unnamed_areas: Vec::new(),
         }
     }
     /// Get the page table token
@@ -261,6 +263,49 @@ impl MemorySet {
         } else {
             false
         }
+    }
+
+    /// create unamed area
+    pub fn insert_unnamed_frame_area(
+        &mut self,
+        start: VirtAddr,
+        end: VirtAddr,
+        permission: u8,
+    ) -> bool {
+        if !self.check_unnamed_area(start, end) {
+            return false;
+        }
+
+        let map_permission = MapPermission::from_bits(permission).unwrap();
+        debug!("map permission: {:?}", map_permission);
+        self.push_unnamed_area(MapArea::new(start, end, MapType::Framed, map_permission));
+        return true;
+    }
+
+    fn push_unnamed_area(&mut self, mut map_area: MapArea) {
+        info!(
+            "unnamed areas range: {:?} -> {:?}",
+            map_area.vpn_range.get_start(),
+            map_area.vpn_range.get_end()
+        );
+        map_area.map(&mut self.page_table);
+        self.unnamed_areas.push(map_area);
+    }
+
+    /// check if the area is used
+    pub fn check_unnamed_area(&self, start: VirtAddr, end: VirtAddr) -> bool {
+        for unnamed_area in self.unnamed_areas.iter() {
+            let start = start.floor();
+            let end = end.ceil();
+            if (start >= unnamed_area.vpn_range.get_start()
+                && start <= unnamed_area.vpn_range.get_end())
+                || (end >= unnamed_area.vpn_range.get_start()
+                    && end <= unnamed_area.vpn_range.get_end())
+            {
+                return false;
+            }
+        }
+        return true;
     }
 }
 /// map area structure, controls a contiguous piece of virtual memory

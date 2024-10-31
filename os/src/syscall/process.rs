@@ -1,9 +1,10 @@
 //! Process management syscalls
 use crate::{
-    config::MAX_SYSCALL_NUM,
+    config::{MAX_SYSCALL_NUM, PAGE_SIZE},
     mm::VirtAddr,
     task::{
-        change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus,
+        change_program_brk, exit_current_and_run_next, push_unnamed_area,
+        suspend_current_and_run_next, TaskStatus,
     },
     timer::get_time_us,
 };
@@ -84,9 +85,20 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
 }
 
 // YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    -1
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
+    debug!("start: {:#x}, len: {:#x}, port: {:#x}", start, len, port);
+    if (port & (!0x7) != 0) || (port & 0x7 == 0) || (start % PAGE_SIZE != 0) {
+        return -1;
+    }
+    let flags: u8 = (((port << 1) & 0b0110) | 0b10000) as u8;
+    if len == 0 {
+        return -1;
+    }
+    debug!("sys_map start: {:#x}, end: {:#x}", start, start + len - 1);
+    if !push_unnamed_area(start, start + len - 1, flags) {
+        return -1;
+    }
+    0
 }
 
 // YOUR JOB: Implement munmap.

@@ -25,6 +25,8 @@ pub use task::{TaskControlBlock, TaskStatus};
 use crate::config::MAX_SYSCALL_NUM;
 pub use context::TaskContext;
 
+use crate::mm::VirtAddr;
+
 /// The task manager, where all the tasks are managed.
 ///
 /// Functions implemented on `TaskManager` deals with all task state transitions
@@ -188,6 +190,17 @@ impl TaskManager {
         let inner = self.inner.exclusive_access();
         inner.tasks[inner.current_task].time
     }
+
+    /// push unnamed area
+    fn push_unnamed_area(&self, start: usize, end: usize, flags: u8) -> bool {
+        let mut inner = self.inner.exclusive_access();
+        let start_vpn = VirtAddr::from(start);
+        let end_vpn = VirtAddr::from(end);
+        let cur = inner.current_task;
+        inner.tasks[cur]
+            .memory_set
+            .insert_unnamed_frame_area(start_vpn, end_vpn, flags)
+    }
 }
 
 /// Run the first task in task list.
@@ -261,4 +274,9 @@ pub fn get_cur_run_time_ms() -> usize {
 /// Update the run time of the current 'Running' task.
 pub fn update_time() {
     TASK_MANAGER.update_time();
+}
+
+/// map unnamed area
+pub fn push_unnamed_area(start_vpn: usize, end_vpn: usize, flags: u8) -> bool {
+    TASK_MANAGER.push_unnamed_area(start_vpn, end_vpn, flags)
 }
