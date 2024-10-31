@@ -201,6 +201,17 @@ impl TaskManager {
             .memory_set
             .insert_unnamed_frame_area(start_vpn, end_vpn, flags)
     }
+
+    /// unmap unnamed area
+    fn unmap_unnamed_area(&self, start: usize, end: usize) -> bool {
+        let mut inner = self.inner.exclusive_access();
+        let start_vpn = VirtAddr::from(start);
+        let end_vpn = VirtAddr::from(end);
+        let cur = inner.current_task;
+        inner.tasks[cur]
+            .memory_set
+            .remove_unnamed_frame(start_vpn, end_vpn)
+    }
 }
 
 /// Run the first task in task list.
@@ -279,4 +290,9 @@ pub fn update_time() {
 /// map unnamed area
 pub fn push_unnamed_area(start_vpn: usize, end_vpn: usize, flags: u8) -> bool {
     TASK_MANAGER.push_unnamed_area(start_vpn, end_vpn, flags)
+}
+
+/// unmap unnamed area
+pub fn remove_unnamed_area(start_vpn: usize, end_vpn: usize) -> bool {
+    TASK_MANAGER.unmap_unnamed_area(start_vpn, end_vpn)
 }
