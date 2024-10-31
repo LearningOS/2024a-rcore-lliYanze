@@ -132,6 +132,11 @@ impl TaskControlBlockInner {
         self.memory_set
             .insert_unnamed_frame_area(start_vpn, end_vpn, flags)
     }
+    pub fn remove_unnamed_area(&mut self, start: usize, end: usize) -> bool {
+        let start_vpn = VirtAddr::from(start);
+        let end_vpn = VirtAddr::from(end);
+        self.memory_set.remove_unnamed_frame(start_vpn, end_vpn)
+    }
 }
 
 impl TaskControlBlock {

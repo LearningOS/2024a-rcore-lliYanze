@@ -361,6 +361,29 @@ impl MemorySet {
         }
         return true;
     }
+
+    /// remove unamed area
+    pub fn remove_unnamed_frame(&mut self, start: VirtAddr, end: VirtAddr) -> bool {
+        let start = start.floor();
+        let end = end.ceil();
+        let vpns = VPNRange::new(start, end);
+        for vpn in vpns {
+            if let Some(pte) = self.page_table.translate(vpn) {
+                if !pte.is_valid() {
+                    info!(
+                        "in [{:?},{:?}] {:?} is not used, can't unmap",
+                        start, end, vpn
+                    );
+                    return false;
+                }
+                self.page_table.unmap(vpn);
+            } else {
+                info!("no pte for vpn: {:?}", vpn);
+                return false;
+            }
+        }
+        return true;
+    }
 }
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {

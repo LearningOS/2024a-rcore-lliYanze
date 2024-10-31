@@ -157,3 +157,10 @@ pub fn push_unnamed_area(start_vpn: usize, end_vpn: usize, flags: u8) -> bool {
         .inner_exclusive_access()
         .push_unnamed_area(start_vpn, end_vpn, flags)
 }
+/// unmap unnamed area
+pub fn remove_unnamed_area(start_vpn: usize, end_vpn: usize) -> bool {
+    current_task()
+        .unwrap()
+        .inner_exclusive_access()
+        .remove_unnamed_area(start_vpn, end_vpn)
+}

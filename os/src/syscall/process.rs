@@ -18,6 +18,7 @@ use crate::mm::translate_va_2_pa;
 use crate::task::get_cur_run_time_ms;
 use crate::task::get_syscall_times;
 use crate::task::get_task_status;
+use crate::task::remove_unnamed_area;
 use crate::task::update_time;
 
 #[repr(C)]
@@ -176,12 +177,17 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     0
 }
 
-/// YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
+// YOUR JOB: Implement munmap.
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    if start % PAGE_SIZE != 0 {
+        return -1;
+    }
+    if len == 0 {
+        return -1;
+    }
+    if remove_unnamed_area(start, start + len) {
+        return 0;
+    }
     -1
 }
 
