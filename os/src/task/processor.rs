@@ -149,3 +149,11 @@ pub fn update_time() {
         .inner_exclusive_access()
         .update_time();
 }
+
+/// map unnamed area
+pub fn push_unnamed_area(start_vpn: usize, end_vpn: usize, flags: u8) -> bool {
+    current_task()
+        .unwrap()
+        .inner_exclusive_access()
+        .push_unnamed_area(start_vpn, end_vpn, flags)
+}
