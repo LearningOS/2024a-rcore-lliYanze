@@ -116,6 +116,13 @@ impl TaskControlBlockInner {
     pub fn get_time(&self) -> usize {
         self.time
     }
+
+    pub fn push_unnamed_area(&mut self, start: usize, end: usize, flags: u8) -> bool {
+        let start_vpn = VirtAddr::from(start);
+        let end_vpn = VirtAddr::from(end);
+        self.memory_set
+            .insert_unnamed_frame_area(start_vpn, end_vpn, flags)
+    }
 }
 
 impl TaskControlBlock {

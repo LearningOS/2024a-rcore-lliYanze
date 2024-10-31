@@ -232,6 +232,5 @@ pub fn translate_va_2_pa(va: VirtAddr) -> Option<PhysPageNum> {
     let ppn = page_table.translate(vpn).unwrap().ppn();
     let page_offset = va.page_offset();
     let pa = PhysAddr::from(ppn).0 + page_offset;
-    debug!("translate_va_2_pa: {:?} -> {:?}", va, pa);
     Some(PhysPageNum::from(pa))
 }
