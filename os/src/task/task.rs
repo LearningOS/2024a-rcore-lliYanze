@@ -1,6 +1,7 @@
 //! Types related to task management & Functions for completely changing TCB
 use super::TaskContext;
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
+use crate::config::DEFAULT_PRIORITY;
 use crate::config::MAX_SYSCALL_NUM;
 use crate::config::TRAP_CONTEXT_BASE;
 use crate::fs::{File, Stdin, Stdout};
@@ -44,6 +45,16 @@ impl TaskControlBlock {
     pub fn change_parent(&self, parent: Option<Weak<TaskControlBlock>>) {
         let mut inner = self.inner_exclusive_access();
         inner.parent = parent;
+    }
+
+    /// change priority
+    pub fn set_priority(&self, priority: isize) {
+        let mut inner = self.inner_exclusive_access();
+        inner.priority = priority;
+    }
+    /// get priority
+    pub fn get_priority(&self) -> isize {
+        self.inner_exclusive_access().priority
     }
 }
 
@@ -89,6 +100,9 @@ pub struct TaskControlBlockInner {
 
     /// total time
     pub time: usize,
+
+    /// priority
+    pub priority: isize,
 }
 
 impl TaskControlBlockInner {
@@ -187,6 +201,7 @@ impl TaskControlBlock {
                     syscall_times: [0; MAX_SYSCALL_NUM],
                     start_time: 0,
                     time: 0,
+                    priority: DEFAULT_PRIORITY,
                 })
             },
         };
@@ -271,6 +286,7 @@ impl TaskControlBlock {
                     syscall_times: [0; MAX_SYSCALL_NUM],
                     time: 0,
                     start_time: 0,
+                    priority: DEFAULT_PRIORITY,
                 })
             },
         });
