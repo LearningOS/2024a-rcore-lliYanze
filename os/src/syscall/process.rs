@@ -4,8 +4,7 @@ use alloc::sync::Arc;
 use crate::{
     config::{MAX_SYSCALL_NUM, PAGE_SIZE},
     loader::get_app_data_by_name,
-    mm::VirtAddr,
-    mm::{translated_refmut, translated_str},
+    mm::{translated_refmut, translated_str, VirtAddr},
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next, push_unnamed_area,
         suspend_current_and_run_next, TaskStatus,
@@ -17,6 +16,7 @@ use crate::mm::translate_va_2_pa;
 use crate::task::get_cur_run_time_ms;
 use crate::task::get_syscall_times;
 use crate::task::get_task_status;
+use crate::task::make_task_controlbrock;
 use crate::task::remove_unnamed_area;
 use crate::task::update_time;
 
@@ -207,12 +207,23 @@ pub fn sys_sbrk(size: i32) -> isize {
 
 /// YOUR JOB: Implement spawn.
 /// HINT: fork + exec =/= spawn
-pub fn sys_spawn(_path: *const u8) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+pub fn sys_spawn(path: *const u8) -> isize {
+    let current_task = current_task().unwrap();
+    let mut parent_inner = current_task.inner_exclusive_access();
+    trace!("kernel:pid[{}] sys_spawn", current_task.pid.0);
+    let token = parent_inner.memory_set.token();
+    let path = translated_str(token, path);
+    if let Some(_) = get_app_data_by_name(path.as_str()) {
+        let new_task = make_task_controlbrock(path.as_str());
+        let new_pid = new_task.pid.0;
+        // parent get new child pid
+        parent_inner.children.push(new_task.clone());
+        debug!("sys spawn new pid: {}", new_pid);
+        add_task(new_task);
+        new_pid as isize
+    } else {
+        -1
+    }
 }
 
 // YOUR JOB: Set task priority.

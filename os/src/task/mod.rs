@@ -116,3 +116,8 @@ lazy_static! {
 pub fn add_initproc() {
     add_task(INITPROC.clone());
 }
+
+/// make a new process
+pub fn make_task_controlbrock(path: &str) -> Arc<TaskControlBlock> {
+    Arc::new(TaskControlBlock::new(get_app_data_by_name(path).unwrap()))
+}
