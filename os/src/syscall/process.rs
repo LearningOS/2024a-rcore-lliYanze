@@ -216,6 +216,7 @@ pub fn sys_spawn(path: *const u8) -> isize {
     if let Some(_) = get_app_data_by_name(path.as_str()) {
         let new_task = make_task_controlbrock(path.as_str());
         let new_pid = new_task.pid.0;
+        new_task.change_parent(Some(Arc::downgrade(&new_task)));
         // parent get new child pid
         parent_inner.children.push(new_task.clone());
         debug!("sys spawn new pid: {}", new_pid);
@@ -227,10 +228,19 @@ pub fn sys_spawn(path: *const u8) -> isize {
 }
 
 // YOUR JOB: Set task priority.
-pub fn sys_set_priority(_prio: isize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
+pub fn sys_set_priority(prio: isize) -> isize {
+    let current_task = current_task().unwrap();
+    debug!(
+        "sys_getpid: set pid[{}] priority {}",
+        current_task.pid.0, prio
     );
-    -1
+    if prio < 2 {
+        return -1;
+    }
+    current_task.set_priority(prio);
+    if prio != current_task.get_priority() {
+        debug!("sys set priority error");
+        return -1;
+    }
+    prio
 }
