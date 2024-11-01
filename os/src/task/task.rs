@@ -39,6 +39,12 @@ impl TaskControlBlock {
         let inner = self.inner_exclusive_access();
         inner.memory_set.token()
     }
+
+    /// change parent process
+    pub fn change_parent(&self, parent: Option<Weak<TaskControlBlock>>) {
+        let mut inner = self.inner_exclusive_access();
+        inner.parent = parent;
+    }
 }
 
 pub struct TaskControlBlockInner {
