@@ -28,3 +28,6 @@ pub const MMIO: &[(usize, usize)] = &[(0x10001000, 0x1000)];
 
 /// the init priority of a task
 pub const DEFAULT_PRIORITY: isize = 16;
+
+/// the BiSemaphore's value
+pub const BIG_STRIDE: usize = 0x3f3f3f3f;

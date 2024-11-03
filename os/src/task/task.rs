@@ -56,6 +56,19 @@ impl TaskControlBlock {
     pub fn get_priority(&self) -> isize {
         self.inner_exclusive_access().priority
     }
+    /// get stride
+    pub fn get_stride(&self) -> usize {
+        self.inner_exclusive_access().stride
+    }
+    /// set stride
+    pub fn set_stride(&self, stride: usize) {
+        let mut inner = self.inner_exclusive_access();
+        inner.stride = stride;
+    }
+    /// get the status of the process
+    pub fn get_status(&self) -> TaskStatus {
+        self.inner_exclusive_access().get_status()
+    }
 }
 
 pub struct TaskControlBlockInner {
@@ -103,6 +116,9 @@ pub struct TaskControlBlockInner {
 
     /// priority
     pub priority: isize,
+
+    /// stride
+    pub stride: usize,
 }
 
 impl TaskControlBlockInner {
@@ -202,6 +218,7 @@ impl TaskControlBlock {
                     start_time: 0,
                     time: 0,
                     priority: DEFAULT_PRIORITY,
+                    stride: 0,
                 })
             },
         };
@@ -287,6 +304,7 @@ impl TaskControlBlock {
                     time: 0,
                     start_time: 0,
                     priority: DEFAULT_PRIORITY,
+                    stride: 0,
                 })
             },
         });
