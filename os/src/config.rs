@@ -26,3 +26,6 @@ pub const MEMORY_END: usize = 0x88000000;
 
 /// the init priority of a task
 pub const DEFAULT_PRIORITY: isize = 16;
+
+/// the BiSemaphore's value
+pub const BIG_STRIDE: usize = 0x3f3f3f3f;
