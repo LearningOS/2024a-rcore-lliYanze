@@ -121,14 +121,3 @@ lazy_static! {
 pub fn add_initproc() {
     add_task(INITPROC.clone());
 }
-
-/// make a new process
-pub fn make_task_controlbrock(path: &str) -> Option<Arc<TaskControlBlock>> {
-    let inode = open_file(path, OpenFlags::RDONLY);
-    if inode.is_none() {
-        return None;
-    }
-
-    let v = inode.unwrap().read_all();
-    Some(Arc::new(TaskControlBlock::new(v.as_slice())))
-}

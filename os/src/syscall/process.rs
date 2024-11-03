@@ -17,7 +17,6 @@ use crate::mm::translate_va_2_pa;
 use crate::task::get_cur_run_time_ms;
 use crate::task::get_syscall_times;
 use crate::task::get_task_status;
-use crate::task::make_task_controlbrock;
 use crate::task::remove_unnamed_area;
 use crate::task::update_time;
 
@@ -204,17 +203,14 @@ pub fn sys_sbrk(size: i32) -> isize {
 /// YOUR JOB: Implement spawn.
 /// HINT: fork + exec =/= spawn
 pub fn sys_spawn(path: *const u8) -> isize {
-    let current_task = current_task().unwrap();
-    let mut parent_inner = current_task.inner_exclusive_access();
-    trace!("kernel:pid[{}] sys_spawn", current_task.pid.0);
-    let token = parent_inner.memory_set.token();
+    let token = current_user_token();
     let path = translated_str(token, path);
-    if let Some(new_task) = make_task_controlbrock(path.as_str()) {
+    if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
+        let all_data = app_inode.read_all();
+
+        let new_task = current_task().unwrap().spawn(all_data.as_slice());
+
         let new_pid = new_task.pid.0;
-        new_task.change_parent(Some(Arc::downgrade(&new_task)));
-        // parent get new child pid
-        parent_inner.children.push(new_task.clone());
-        debug!("sys spawn new pid: {}", new_pid);
         add_task(new_task);
         new_pid as isize
     } else {
