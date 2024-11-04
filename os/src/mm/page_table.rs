@@ -230,14 +230,15 @@ pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
 }
 
 /// translate va to pa
-pub fn translate_va_2_pa(va: VirtAddr) -> Option<PhysPageNum> {
+pub fn translate_va_2_pa(va: VirtAddr) -> Option<PhysAddr> {
     let current_task_token = current_user_token();
     let page_table = PageTable::from_token(current_task_token);
     let vpn = va.floor();
     let ppn = page_table.translate(vpn).unwrap().ppn();
     let page_offset = va.page_offset();
     let pa = PhysAddr::from(ppn).0 + page_offset;
-    Some(PhysPageNum::from(pa))
+    // Some(PhysPageNum::from(pa))
+    Some(PhysAddr::from(pa))
 }
 
 /// An abstraction over a buffer passed from user space to kernel space
