@@ -2,6 +2,7 @@ use crate::sync::{Condvar, Mutex, MutexBlocking, MutexSpin, Semaphore};
 use crate::task::{block_current_and_run_next, current_process, current_task};
 use crate::timer::{add_timer, get_time_ms};
 use alloc::sync::Arc;
+use alloc::vec;
 /// sleep syscall
 pub fn sys_sleep(ms: usize) -> isize {
     trace!(
@@ -49,9 +50,16 @@ pub fn sys_mutex_create(blocking: bool) -> isize {
         .map(|(id, _)| id)
     {
         process_inner.mutex_list[id] = mutex;
+        process_inner
+            .mutex_deadlock_detect
+            .need_resource(id, vec![1]);
         id as isize
     } else {
         process_inner.mutex_list.push(mutex);
+        let id = process_inner.mutex_list.len() - 1;
+        process_inner
+            .mutex_deadlock_detect
+            .need_resource(id, vec![1]);
         process_inner.mutex_list.len() as isize - 1
     }
 }
@@ -69,7 +77,43 @@ pub fn sys_mutex_lock(mutex_id: usize) -> isize {
             .tid
     );
     let process = current_process();
-    let process_inner = process.inner_exclusive_access();
+    let mut process_inner = process.inner_exclusive_access();
+
+    let tid = current_task()
+        .unwrap()
+        .inner_exclusive_access()
+        .res
+        .as_ref()
+        .unwrap()
+        .tid;
+    debug!(
+        "kernel:pid[{}] tid[{}] sys_mutex_lock",
+        current_task().unwrap().process.upgrade().unwrap().getpid(),
+        current_task()
+            .unwrap()
+            .inner_exclusive_access()
+            .res
+            .as_ref()
+            .unwrap()
+            .tid
+    );
+
+    // 在need中放入需要的资源
+    process_inner
+        .mutex_deadlock_detect
+        .need_resource(tid, vec![1]);
+    if !process_inner.mutex_deadlock_detect.detect() {
+        return -0xdead;
+    }
+    // 消耗资源
+    process_inner
+        .mutex_deadlock_detect
+        .consume_resource(mutex_id, 1);
+    // 记录已经得到的
+    process_inner
+        .mutex_deadlock_detect
+        .allocate_resource(tid, vec![1]);
+
     let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
     drop(process_inner);
     drop(process);
@@ -245,7 +289,13 @@ pub fn sys_condvar_wait(condvar_id: usize, mutex_id: usize) -> isize {
 /// enable deadlock detection syscall
 ///
 /// YOUR JOB: Implement deadlock detection, but might not all in this syscall
-pub fn sys_enable_deadlock_detect(_enabled: usize) -> isize {
-    trace!("kernel: sys_enable_deadlock_detect NOT IMPLEMENTED");
-    -1
+pub fn sys_enable_deadlock_detect(enabled: usize) -> isize {
+    let process = current_process();
+    let mut process_inner = process.inner_exclusive_access();
+    if enabled == 0 {
+        process_inner.mutex_deadlock_detect.close();
+    } else {
+        process_inner.mutex_deadlock_detect.open();
+    }
+    0
 }

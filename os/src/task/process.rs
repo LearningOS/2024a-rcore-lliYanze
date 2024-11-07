@@ -14,6 +14,7 @@ use alloc::sync::{Arc, Weak};
 use alloc::vec;
 use alloc::vec::Vec;
 use core::cell::RefMut;
+use core::fmt::{Debug, Formatter};
 
 /// Process Control Block
 pub struct ProcessControlBlock {
@@ -45,6 +46,8 @@ pub struct ProcessControlBlockInner {
     pub task_res_allocator: RecycleAllocator,
     /// mutex list
     pub mutex_list: Vec<Option<Arc<dyn Mutex>>>,
+    /// mutex dead lock detect
+    pub mutex_deadlock_detect: MutexDeadlockDetect,
     /// semaphore list
     pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
     /// condvar list
@@ -117,6 +120,7 @@ impl ProcessControlBlock {
                     tasks: Vec::new(),
                     task_res_allocator: RecycleAllocator::new(),
                     mutex_list: Vec::new(),
+                    mutex_deadlock_detect: MutexDeadlockDetect::new(0),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
                 })
@@ -243,6 +247,7 @@ impl ProcessControlBlock {
                     tasks: Vec::new(),
                     task_res_allocator: RecycleAllocator::new(),
                     mutex_list: Vec::new(),
+                    mutex_deadlock_detect: MutexDeadlockDetect::new(0),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
                 })
@@ -281,5 +286,97 @@ impl ProcessControlBlock {
     /// get pid
     pub fn getpid(&self) -> usize {
         self.pid.0
+    }
+}
+
+pub struct MutexDeadlockDetect {
+    /// dead lock detect enable?
+    deadlock_detect: bool,
+    available: Vec<i32>,
+    allocation: Vec<Vec<i32>>,
+    need: Vec<Vec<i32>>,
+}
+
+impl MutexDeadlockDetect {
+    pub fn new(n: usize) -> Self {
+        // 初始放一个资源
+        let available = vec![1; n + 1];
+        let allocation = vec![vec![0; n]; n];
+        let need = vec![vec![0; n]; n];
+        MutexDeadlockDetect {
+            deadlock_detect: false,
+            available,
+            allocation,
+            need,
+        }
+    }
+    pub fn open(&mut self) {
+        debug!("enable deadlock detect");
+        self.deadlock_detect = true;
+    }
+    pub fn close(&mut self) {
+        debug!("disable deadlock detect");
+        self.deadlock_detect = false;
+    }
+
+    pub fn consume_resource(&mut self, resource: usize, num: usize) {
+        self.available[resource] -= num as i32;
+    }
+
+    pub fn allocate_resource(&mut self, task: usize, resource: Vec<i32>) {
+        if task >= self.allocation.len() {
+            self.allocation.push(resource);
+            return;
+        }
+        assert!(task == self.allocation.len() - 1);
+        self.allocation[task] = resource;
+    }
+
+    pub fn need_resource(&mut self, task: usize, resource: Vec<i32>) {
+        if task >= self.need.len() {
+            self.need.push(resource);
+            return;
+        }
+        self.need[task] = resource;
+    }
+    pub fn detect(&self) -> bool {
+        debug!("{:?}", self);
+        if !self.deadlock_detect {
+            info!("detect deadlock detect is not enabled");
+            true;
+        }
+        info!("deadlock detect");
+        debug!("now processor have {} source", self.available.len());
+        debug!("now processor have {} task", self.allocation.len());
+        // work = available
+        let mut work = self.available.clone();
+        let mut finish = vec![false; self.allocation.len()];
+
+        let mut flag = true;
+        while flag {
+            flag = false;
+            for i in 0..self.allocation.len() {
+                if !finish[i] && self.need[i].iter().zip(work.iter()).all(|(x, y)| x <= y) {
+                    finish[i] = true;
+                    flag = true;
+                    for j in 0..self.available.len() {
+                        work[j] += self.allocation[i][j];
+                    }
+                }
+            }
+        }
+        debug!("finish {:?}", finish);
+        finish.iter().all(|x| *x)
+    }
+}
+
+impl Debug for MutexDeadlockDetect {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("MutexDeadlockDetect")
+            .field("deadlock_detect", &self.deadlock_detect)
+            .field("available", &self.available)
+            .field("allocation", &self.allocation)
+            .field("need", &self.need)
+            .finish()
     }
 }
