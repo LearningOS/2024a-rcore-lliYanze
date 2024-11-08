@@ -225,6 +225,12 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
             .release_need_num_resource(tid, sem_id, 1);
         return -0xdead;
     }
+
+    let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
+    drop(process_inner);
+    sem.down();
+
+    let mut process_inner = process.inner_exclusive_access();
     process_inner
         .semaphore_deadlock_detect
         .consume_resource(sem_id, 1);
@@ -234,10 +240,6 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
     process_inner
         .semaphore_deadlock_detect
         .release_need_num_resource(tid, sem_id, 1);
-
-    let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
-    drop(process_inner);
-    sem.down();
     0
 }
 /// condvar create syscall

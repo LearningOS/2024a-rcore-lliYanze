@@ -520,7 +520,6 @@ impl SemaphoreDeadlockDetect {
         // work = available
         let mut work = self.available.clone();
         let mut finish = vec![false; self.allocation.len()];
-        finish[0] = true;
 
         let mut flag = true;
         while flag {
