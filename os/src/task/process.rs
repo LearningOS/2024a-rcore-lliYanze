@@ -8,6 +8,7 @@ use super::{pid_alloc, PidHandle};
 use crate::fs::{File, Stdin, Stdout};
 use crate::mm::{translated_refmut, MemorySet, KERNEL_SPACE};
 use crate::sync::{Condvar, Mutex, Semaphore, UPSafeCell};
+use crate::task::current_task;
 use crate::trap::{trap_handler, TrapContext};
 use alloc::string::String;
 use alloc::sync::{Arc, Weak};
@@ -50,6 +51,8 @@ pub struct ProcessControlBlockInner {
     pub mutex_deadlock_detect: MutexDeadlockDetect,
     /// semaphore list
     pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
+    /// semaphore dead lock detect
+    pub semaphore_deadlock_detect: SemaphoreDeadlockDetect,
     /// condvar list
     pub condvar_list: Vec<Option<Arc<Condvar>>>,
 }
@@ -122,6 +125,7 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     mutex_deadlock_detect: MutexDeadlockDetect::new(0),
                     semaphore_list: Vec::new(),
+                    semaphore_deadlock_detect: SemaphoreDeadlockDetect::new(),
                     condvar_list: Vec::new(),
                 })
             },
@@ -249,6 +253,7 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     mutex_deadlock_detect: MutexDeadlockDetect::new(0),
                     semaphore_list: Vec::new(),
+                    semaphore_deadlock_detect: SemaphoreDeadlockDetect::new(),
                     condvar_list: Vec::new(),
                 })
             },
@@ -320,10 +325,16 @@ impl MutexDeadlockDetect {
     }
 
     pub fn consume_resource(&mut self, resource: usize, num: usize) {
+        if !self.deadlock_detect {
+            return;
+        }
         self.available[resource] -= num as i32;
     }
 
     pub fn allocate_resource(&mut self, task: usize, resource: Vec<i32>) {
+        if !self.deadlock_detect {
+            return;
+        }
         if task >= self.allocation.len() {
             self.allocation.push(resource);
             return;
@@ -333,6 +344,9 @@ impl MutexDeadlockDetect {
     }
 
     pub fn need_resource(&mut self, task: usize, resource: Vec<i32>) {
+        if !self.deadlock_detect {
+            return;
+        }
         if task >= self.need.len() {
             self.need.push(resource);
             return;
@@ -378,5 +392,150 @@ impl Debug for MutexDeadlockDetect {
             .field("allocation", &self.allocation)
             .field("need", &self.need)
             .finish()
+    }
+}
+
+pub struct SemaphoreDeadlockDetect {
+    /// dead lock detect enable?
+    deadlock_detect: bool,
+    available: Vec<i32>,
+    allocation: Vec<Vec<i32>>,
+    need: Vec<Vec<i32>>,
+}
+
+impl Debug for SemaphoreDeadlockDetect {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        // 手动输出 available 数组，逐行输出
+        writeln!(f, "available:")?;
+        writeln!(f, "           {:?}", self.available)?;
+        // 手动输出 allocation 数组，逐行输出
+        writeln!(f, "allocation:")?;
+        for (i, row) in self.allocation.iter().enumerate() {
+            writeln!(f, "thread[{}]: {:?}", i, row)?;
+        }
+        // 手动输出 need 数组，逐行输出
+        writeln!(f, "need:")?;
+        for (i, row) in self.need.iter().enumerate() {
+            writeln!(f, "thread[{}]: {:?}", i, row)?;
+        }
+        Ok(())
+    }
+}
+
+impl SemaphoreDeadlockDetect {
+    pub fn new() -> Self {
+        // 假设最多只有4个互斥锁资源
+        let available = vec![0; 5];
+        let allocation = vec![vec![0; 5]; 5];
+        let need = vec![vec![0; 5]; 5];
+        SemaphoreDeadlockDetect {
+            deadlock_detect: false,
+            available,
+            allocation,
+            need,
+        }
+    }
+
+    pub fn open(&mut self) {
+        debug!("enable deadlock detect");
+        self.deadlock_detect = true;
+    }
+    pub fn close(&mut self) {
+        debug!("disable deadlock detect");
+        self.deadlock_detect = false;
+    }
+
+    /// 消费掉总资源
+    pub fn consume_resource(&mut self, resource: usize, num: usize) {
+        if !self.deadlock_detect {
+            return;
+        }
+        self.available[resource] -= num as i32;
+    }
+
+    /// 总资源增加
+    pub fn put_resource(&mut self, resource: usize, num: usize) {
+        if !self.deadlock_detect {
+            return;
+        }
+        self.available[resource] += num as i32;
+    }
+
+    /// 分配资源
+    pub fn allocate_resource(&mut self, task: usize, resource_id: usize, num: usize) {
+        if !self.deadlock_detect {
+            return;
+        }
+        assert!(resource_id < 5);
+        assert!(task < 5);
+        self.allocation[task][resource_id] += num as i32;
+    }
+
+    /// 回收已经分配的资源
+    pub fn deallocate_resource(&mut self, task: usize, resource_id: usize, num: usize) {
+        if !self.deadlock_detect {
+            return;
+        }
+        assert!(task < self.allocation.len());
+        assert!(resource_id < 5);
+        self.allocation[task][resource_id] -= num as i32;
+    }
+    /// 需要资源
+    pub fn need_num_resource(&mut self, task: usize, resource_id: usize, num: usize) {
+        if !self.deadlock_detect {
+            return;
+        }
+        assert!(task < 5);
+        assert!(resource_id < 5);
+        self.need[task][resource_id] += num as i32;
+    }
+
+    /// 释放需要的资源
+    pub fn release_need_num_resource(&mut self, task: usize, resource_id: usize, num: usize) {
+        if !self.deadlock_detect {
+            return;
+        }
+        assert!(task < 5);
+        assert!(resource_id < 5);
+        self.need[task][resource_id] -= num as i32;
+    }
+
+    /// 检测死锁
+    pub fn detect(&self) -> bool {
+        if !self.deadlock_detect {
+            info!("detect deadlock detect is not enabled");
+            return true;
+        }
+        let tid = current_task()
+            .unwrap()
+            .inner_exclusive_access()
+            .res
+            .as_ref()
+            .unwrap()
+            .tid;
+        info!("deadlock detect");
+        debug!("********{}**********", tid);
+        debug!("{:?}", self);
+        debug!("**********************");
+        // work = available
+        let mut work = self.available.clone();
+        let mut finish = vec![false; self.allocation.len()];
+        finish[0] = true;
+
+        let mut flag = true;
+        while flag {
+            flag = false;
+            for i in 0..self.allocation.len() {
+                if !finish[i] && self.need[i].iter().zip(work.iter()).all(|(x, y)| x <= y) {
+                    finish[i] = true;
+                    flag = true;
+                    for j in 0..self.available.len() {
+                        work[j] += self.allocation[i][j];
+                    }
+                }
+            }
+        }
+        debug!("finish {:?}", finish);
+        finish.iter().all(|x| *x)
     }
 }
